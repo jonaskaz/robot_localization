@@ -182,20 +182,15 @@ class ParticleFilter(Node):
         """
         # first make sure that the particle weights are normalized
         self.normalize_particles()
-
-        # TODO: assign the latest pose into self.robot_pose as a geometry_msgs.Pose object
-        # just to get started we will fix the robot's pose to always be at the origin
-        self.robot_pose = Pose()
-
-        self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
-                                                        self.odom_pose)
         # Jackie's code below
         # Compute the mean pose by incorporating the weights
-        x_mean = (p.x*p.w for p in self.particle_cloud)
-        y_mean = (p.y*p.w for p in self.particle_cloud)
-        theta_mean = (p.theta*p.w for p in self.particle_cloud)     
+        x_mean = sum(p.x*p.w for p in self.particle_cloud)
+        y_mean = sum(p.y*p.w for p in self.particle_cloud)
+        theta_mean = sum(p.theta*p.w for p in self.particle_cloud)     
         mean_pose = Particle(x_mean, y_mean, theta_mean)
-        self.robot_pose = mean_pose.as_pose
+        self.robot_pose = mean_pose.as_pose()
+        self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
+                                                self.odom_pose)
 
     def update_particles_with_odom(self):
         """ Update the particles using the newly given odometry pose.
@@ -262,10 +257,10 @@ class ParticleFilter(Node):
             # Number of scan points that match with an obstacle in the map
             num_matching = 0
             # Calculate the closest obstacle for each data point from the laser scan
-            for i in range(360):
+            for i in range(len(r)):
                 laser_theta = theta[i]
                 # Calculate laser scan point location in world frame
-                scan_pt_x = particle.x + r[i]*math.cos(robot_theta+laser_theta)
+                scan_pt_x = particle.x - r[i]*math.sin(robot_theta+laser_theta)
                 scan_pt_y = particle.y + r[i]*math.cos(robot_theta+laser_theta)
                 # Find distance to the closest obstacle from the scan point
                 closest_obstacle_dist = self.occupancy_field.get_closest_obstacle_distance(scan_pt_x, scan_pt_y)
@@ -275,7 +270,7 @@ class ParticleFilter(Node):
                     num_matching += 1
             scan_accuracy = num_matching/360
             # Update particle weight using gaussian function centered at x=1 and y range from 0-1
-            particle.w = gaussian(scan_accuracy, 1, 0.5)
+            particle.w = self.gaussian(scan_accuracy, 1, 0.5)
 
     def update_initial_pose(self, msg):
         """ Callback function to handle re-initializing the particle filter based on a pose estimate.
@@ -332,7 +327,7 @@ class ParticleFilter(Node):
         if self.scan_to_process is None:
             self.scan_to_process = msg
 
-    def gaussian(x, mu, sig):
+    def gaussian(self, x, mu, sig):
         """ Gaussian distribution function with y values between 0-1
             Arguments:
             sig: standard deviation
