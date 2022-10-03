@@ -2,6 +2,7 @@
 
 """ This is the starter code for the robot localization project """
 
+from operator import attrgetter
 import rclpy
 from threading import Thread
 from rclpy.time import Time
@@ -14,7 +15,7 @@ import math
 import time
 import numpy as np
 from occupancy_field import OccupancyField
-from helper_functions import TFHelper
+from helper_functions import TFHelper, draw_random_sample
 from rclpy.qos import qos_profile_sensor_data
 from angle_helpers import quaternion_from_euler
 
@@ -161,7 +162,7 @@ class ParticleFilter(Node):
         elif self.moved_far_enough_to_update(new_odom_xy_theta):
             # we have moved far enough to do an update!
             self.update_particles_with_odom()    # update based on odometry
-            self.update_particles_with_laser(r, theta)   # update based on laser scan
+            self.update_particles_with_laser(r, theta)   # updates weight based on laser scan
             self.update_robot_pose()                # update robot's pose based on particles
             self.resample_particles()               # resample particles to focus on areas of high density
         # publish particles (so things like rviz can see them)
@@ -188,6 +189,13 @@ class ParticleFilter(Node):
 
         self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
                                                         self.odom_pose)
+        # Jackie's code below
+        # Compute the mean pose by incorporating the weights
+        x_mean = (p.x*p.w for p in self.particle_cloud)
+        y_mean = (p.y*p.w for p in self.particle_cloud)
+        theta_mean = (p.theta*p.w for p in self.particle_cloud)     
+        mean_pose = Particle(x_mean, y_mean, theta_mean)
+        self.robot_pose = mean_pose.as_pose
 
     def update_particles_with_odom(self):
         """ Update the particles using the newly given odometry pose.
@@ -199,16 +207,19 @@ class ParticleFilter(Node):
         # compute the change in x,y,theta since our last update
         if self.current_odom_xy_theta:
             old_odom_xy_theta = self.current_odom_xy_theta
-            delta = (new_odom_xy_theta[0] - self.current_odom_xy_theta[0],
-                     new_odom_xy_theta[1] - self.current_odom_xy_theta[1],
-                     new_odom_xy_theta[2] - self.current_odom_xy_theta[2])
+            delta = (new_odom_xy_theta[0] - self.current_odom_xy_theta[0], # x delta
+                     new_odom_xy_theta[1] - self.current_odom_xy_theta[1], # y delta
+                     new_odom_xy_theta[2] - self.current_odom_xy_theta[2]) # theta delta
 
             self.current_odom_xy_theta = new_odom_xy_theta
         else:
             self.current_odom_xy_theta = new_odom_xy_theta
             return
 
-        # TODO: modify particles using delta
+        for particle in self.particle_cloud:
+            particle.x = particle.x + delta[0]
+            particle.y = particle.y + delta[1]
+            particle.theta = particle.theta + delta[2]
 
     def resample_particles(self):
         """ Resample the particles according to the new particle weights.
@@ -219,14 +230,52 @@ class ParticleFilter(Node):
         # make sure the distribution is normalized
         self.normalize_particles()
         # TODO: fill out the rest of the implementation
+        # Resample based on weight of particle
+        x_choices = [p.x for p in self.particle_cloud]
+        y_choices = [p.y for p in self.particle_cloud]
+        theta_choices = [p.theta for p in self.particle_cloud]
+        probabilities = [p.w for p in self.particle_cloud]
+        x_list = draw_random_sample(x_choices, probabilities, self.n_particles)
+        y_list = draw_random_sample(y_choices, probabilities, self.n_particles)
+        theta_list = draw_random_sample(theta_choices, probabilities, self.n_particles)
+        # Clear particle cloud
+        self.particle_cloud = []
+        # Add new particles to particle cloud
+        for i in range(self.n_particles):
+            # Create particle
+            particle = Particle(x_list[i], y_list[i], theta_list[i])
+            # Add to particle list
+            self.particle_cloud.append(particle)
 
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
             r: the distance readings to obstacles
             theta: the angle relative to the robot frame for each corresponding reading 
         """
+
         # TODO: implement this
-        pass
+        for particle in self.particle_cloud:
+            # angle the robot is pointing relative to the world frame
+            robot_theta = particle.theta
+            # List for closest obstacle distances
+            closest_obstacle_dist = []
+            # Number of scan points that match with an obstacle in the map
+            num_matching = 0
+            # Calculate the closest obstacle for each data point from the laser scan
+            for i in range(360):
+                laser_theta = theta[i]
+                # Calculate laser scan point location in world frame
+                scan_pt_x = particle.x + r[i]*math.cos(robot_theta+laser_theta)
+                scan_pt_y = particle.y + r[i]*math.cos(robot_theta+laser_theta)
+                # Find distance to the closest obstacle from the scan point
+                closest_obstacle_dist = self.occupancy_field.get_closest_obstacle_distance(scan_pt_x, scan_pt_y)
+                # TODO: Ask in class if there is a better way to do this
+                # If distance is less than 0.1 m, we count it as accurate
+                if closest_obstacle_dist <= 0.1:
+                    num_matching += 1
+            scan_accuracy = num_matching/360
+            # Update particle weight using gaussian function centered at x=1 and y range from 0-1
+            particle.w = gaussian(scan_accuracy, 1, 0.5)
 
     def update_initial_pose(self, msg):
         """ Callback function to handle re-initializing the particle filter based on a pose estimate.
@@ -242,14 +291,30 @@ class ParticleFilter(Node):
         if xy_theta is None:
             xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
         self.particle_cloud = []
-        # TODO create particles
+        # Creates uniform gaussian distribution around point.
+        # random.normal(mean, standard deviation, size)
+        # std = determines the spread of the initial particle cloud
+        std = 0.3
+        x_list = np.random.normal(xy_theta[0], std, self.n_particles)
+        y_list = np.random.normal(xy_theta[1], std, self.n_particles)
+        theta_list = np.random.uniform(0,2*math.pi, self.n_particles) # TODO: might be sus, check with Loren
+        for i in range(self.n_particles):
+            # Create particle
+            particle = Particle(x_list[i], y_list[i], theta_list[i])
+            # Add to particle list
+            self.particle_cloud.append(particle)
 
         self.normalize_particles()
 
     def normalize_particles(self):
         """ Make sure the particle weights define a valid distribution (i.e. sum to 1.0) """
-        # TODO: implement this
-        pass
+        # Get sum of weights
+        particle_weight_sum = sum(p.w for p in self.particle_cloud)
+        # Divide the sum by 1 to get scale factor
+        scale = 1/particle_weight_sum
+        # Normalize particles with new scale
+        for i in range(self.n_particles):
+            self.particle_cloud[i].w = self.particle_cloud[i].w * scale
 
     def publish_particles(self, timestamp):
         particles_conv = []
@@ -260,13 +325,20 @@ class ParticleFilter(Node):
                                             frame_id=self.map_frame),
                                   poses=particles_conv))
 
-
     def scan_received(self, msg):
         self.last_scan_timestamp = msg.header.stamp
         # we throw away scans until we are done processing the previous scan
         # self.scan_to_process is set to None in the run_loop 
         if self.scan_to_process is None:
             self.scan_to_process = msg
+
+    def gaussian(x, mu, sig):
+        """ Gaussian distribution function with y values between 0-1
+            Arguments:
+            sig: standard deviation
+            mu: mean
+        """
+        return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
 
 def main(args=None):
     rclpy.init()
@@ -276,3 +348,17 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
+
+
+from matplotlib import pyplot as mp
+import numpy as np
+
+def gaussian(x, mu, sig):
+    return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
+
+x_values = np.linspace(-3, 3, 120)
+for mu, sig in [(1, 0.5)]:
+    mp.plot(x_values, gaussian(x_values, mu, sig))
+
+mp.show()
