@@ -211,10 +211,27 @@ class ParticleFilter(Node):
             self.current_odom_xy_theta = new_odom_xy_theta
             return
 
+        # Create transformation matrix from position 1 to position 2
+        c,s = np.cos(self.current_odom_xy_theta[2]), np.sin(self.current_odom_xy_theta[2])
+        T_current2odom = np.array(  ((c,-s, 0), 
+                                    (s, c, 0), 
+                                    (self.current_odom_xy_theta[0], self.current_odom_xy_theta[1], 1)))
+        c,s = np.cos(new_odom_xy_theta[2]), np.sin(new_odom_xy_theta[2])
+        T_new2odom = np.array(      ((c,-s, 0), 
+                                    (s, c, 0), 
+                                    (new_odom_xy_theta[0], new_odom_xy_theta[1], 1)))
+                                    
+        T_new_current = np.matmul(np.linalg.inv(T_current2odom),T_new2odom)
+
         for particle in self.particle_cloud:
-            particle.x = particle.x + delta[0]
-            particle.y = particle.y + delta[1]
-            particle.theta = particle.theta + delta[2]
+            particle_mat = np.array(particle.x, particle.y, particle.theta)
+            new_particle_loc = np.matmul(T_new_current, particle_mat)
+            particle.x = new_particle_loc[0]
+            particle.y = new_particle_loc[1]
+            particle.theta = new_particle_loc[2]
+            # particle.x = particle.x + delta[0]
+            # particle.y = particle.y + delta[1]
+            # particle.theta = particle.theta + delta[2]
 
     def resample_particles(self):
         """ Resample the particles according to the new particle weights.
@@ -286,7 +303,7 @@ class ParticleFilter(Node):
         if xy_theta is None:
             xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
         self.particle_cloud = []
-        # Creates uniform gaussian distribution around point.
+        # Creates uniform gaussian distribution around p    oint.
         # random.normal(mean, standard deviation, size)
         # std = determines the spread of the initial particle cloud
         std = 0.3
