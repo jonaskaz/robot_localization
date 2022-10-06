@@ -113,6 +113,7 @@ class ParticleFilter(Node):
         """ This function takes care of sending out the map to odom transform """
         if self.last_scan_timestamp is None:
             return
+        print("Hi")
         postdated_timestamp = Time.from_msg(self.last_scan_timestamp) + Duration(seconds=0.1)
         self.transform_helper.send_last_map_to_odom_transform(self.map_frame, self.odom_frame, postdated_timestamp)
 
