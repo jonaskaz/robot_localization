@@ -198,7 +198,9 @@ class ParticleFilter(Node):
             that indicates the change in position and angle between the odometry
             when the particles were last updated and the current odometry.
         """
+        
         new_odom_xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
+        
         # compute the change in x,y,theta since our last update
         if self.current_odom_xy_theta:
             old_odom_xy_theta = self.current_odom_xy_theta
@@ -206,37 +208,34 @@ class ParticleFilter(Node):
                      new_odom_xy_theta[1] - self.current_odom_xy_theta[1], # y delta
                      new_odom_xy_theta[2] - self.current_odom_xy_theta[2]) # theta delta
 
+            # Create transformation matrix from position 1 to position 2
+            c,s = np.cos(self.current_odom_xy_theta[2]), np.sin(self.current_odom_xy_theta[2])
+            T_current2odom = np.array( ((c,-s, self.current_odom_xy_theta[0]), 
+                                        (s, c, self.current_odom_xy_theta[1]), 
+                                        (0, 0, 1)))
+            c,s = np.cos(new_odom_xy_theta[2]), np.sin(new_odom_xy_theta[2])
+            T_new2odom = np.array(     ((c,-s, new_odom_xy_theta[0]), 
+                                        (s, c, new_odom_xy_theta[1]), 
+                                        (0, 0, 1)))             
+            T_new2current = np.linalg.inv(T_current2odom) @ T_new2odom
+
             self.current_odom_xy_theta = new_odom_xy_theta
         else:
             self.current_odom_xy_theta = new_odom_xy_theta
             return
 
-        # Create transformation matrix from position 1 to position 2
-        c,s = np.cos(self.current_odom_xy_theta[2]), np.sin(self.current_odom_xy_theta[2])
-        T_current2odom = np.array( ((c,-s, self.current_odom_xy_theta[0]), 
-                                    (s, c, self.current_odom_xy_theta[1]), 
-                                    (0, 0, 1)))
-        c,s = np.cos(new_odom_xy_theta[2]), np.sin(new_odom_xy_theta[2])
-        T_new2odom = np.array(     ((c,-s, new_odom_xy_theta[0]), 
-                                    (s, c, new_odom_xy_theta[1]), 
-                                    (0, 0, 1)))
-                                    
-        T_new2current = np.linalg.inv(T_current2odom) @ T_new2odom
-
         # for particle in self.particle_cloud:
-        for particle in self.particle_cloud[0:10]:
+        for particle in self.particle_cloud[0:360]:
             c,s = np.cos(particle.theta), np.sin(particle.theta)
             # create transformation matrix for particle
-            T_particle = np.array( ((c,-s, particle.x), 
-                                    (s, c, particle.y), 
-                                    (0, 0, 1)))
-            new_particle_loc = T_new2current @ T_particle
+            T_particle = np.array((particle.x, particle.y, 1))
+            new_particle_loc = np.dot(T_new2current, T_particle)
             # print("new_particle_loc:", new_particle_loc)
             # print("OLD: x, y, theta:" ,particle.x, particle.y, particle.theta)
-
-            particle.x = new_particle_loc[0][2]
-            particle.y = new_particle_loc[1][2]
-            particle.theta = math.acos(new_particle_loc[0][0])
+            
+            particle.x = new_particle_loc[0]
+            particle.y = new_particle_loc[1]
+            particle.theta = particle.theta + delta[2]
             # print("UPDATE: x, y, theta:" ,particle.x, particle.y, particle.theta)
             # particle.x = particle.x + delta[0]
             # particle.y = particle.y + delta[1]
