@@ -7,7 +7,7 @@ import rclpy
 from threading import Thread
 from rclpy.time import Time
 from rclpy.node import Node
-from std_msgs.msg import Header
+from std_msgs.msg import Header, Float32MultiArray
 from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseArray, Pose, Point, Quaternion
 from rclpy.duration import Duration
@@ -18,6 +18,7 @@ from occupancy_field import OccupancyField
 from helper_functions import TFHelper, draw_random_sample
 from rclpy.qos import qos_profile_sensor_data
 from angle_helpers import quaternion_from_euler
+
 
 class Particle(object):
     """ Represents a hypothesis (particle) of the robot's pose consisting of x,y and theta (yaw)
@@ -109,18 +110,26 @@ class ParticleFilter(Node):
         thread.start()
         self.transform_update_timer = self.create_timer(0.05, self.pub_latest_transform)
 
+        # Publish particle weights for visualizing
+        self.particle_weight_publisher = self.create_publisher(Float32MultiArray, "particle_weights", 10)
+        self.particle_weight_publisher_timer = self.create_timer(3, self.publish_particle_weights)
+    
+    def publish_particle_weights(self):
+        msg = Float32MultiArray()
+        msg.data = [p.w for p in self.particle_cloud]
+        self.particle_weight_publisher.publish(msg)
+
     def pub_latest_transform(self):
         """ This function takes care of sending out the map to odom transform """
         if self.last_scan_timestamp is None:
             return
-        print("Hi")
         postdated_timestamp = Time.from_msg(self.last_scan_timestamp) + Duration(seconds=0.1)
         self.transform_helper.send_last_map_to_odom_transform(self.map_frame, self.odom_frame, postdated_timestamp)
 
     def loop_wrapper(self):
         """ This function takes care of calling the run_loop function repeatedly.
             We are using a separate thread to run the loop_wrapper to work around
-            issues with single threaded executors in ROS2 """
+            issues with single threaded exe cutors in ROS2 """
         while True:
             self.run_loop()
             time.sleep(0.1)
@@ -166,6 +175,7 @@ class ParticleFilter(Node):
             self.update_particles_with_laser(r, theta)   # updates weight based on laser scan
             self.update_robot_pose()                # update robot's pose based on particles
             self.resample_particles()               # resample particles to focus on areas of high density
+            self.plot_particle_weights()
         # publish particles (so things like rviz can see them)
         self.publish_particles(msg.header.stamp)
 
@@ -187,8 +197,8 @@ class ParticleFilter(Node):
         # Compute the mean pose by incorporating the weights
         x_mean = sum(p.x*p.w for p in self.particle_cloud)
         y_mean = sum(p.y*p.w for p in self.particle_cloud)
-        theta_mean = sum(p.theta*p.w for p in self.particle_cloud)     
-        mean_pose = Particle(x_mean, y_mean, theta_mean)
+        theta_best = max(self.particle_cloud, key=attrgetter("w")).theta
+        mean_pose = Particle(x_mean, y_mean, theta_best)
         self.robot_pose = mean_pose.as_pose()
         self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
                                                 self.odom_pose)
@@ -236,7 +246,7 @@ class ParticleFilter(Node):
             
             particle.x = new_particle_loc[0]
             particle.y = new_particle_loc[1]
-            particle.theta = particle.theta + delta[2]
+            particle.theta = particle.theta + delta[2] - np.pi/2
             # print("UPDATE: x, y, theta:" ,particle.x, particle.y, particle.theta)
             # particle.x = particle.x + delta[0]
             # particle.y = particle.y + delta[1]
@@ -293,11 +303,11 @@ class ParticleFilter(Node):
                 closest_obstacle_dist = self.occupancy_field.get_closest_obstacle_distance(scan_pt_x, scan_pt_y)
                 # TODO: Ask in class if there is a better way to do this
                 # If distance is less than 0.1 m, we count it as accurate
-                if closest_obstacle_dist <= 0.1:
+                if closest_obstacle_dist <= 0.05:
                     num_matching += 1
             scan_accuracy = num_matching/360
             # Update particle weight using gaussian function centered at x=1 and y range from 0-1
-            particle.w = self.gaussian(scan_accuracy, 1, 0.5)
+            particle.w = self.gaussian(scan_accuracy, 1, 0.4)
 
     def update_initial_pose(self, msg):
         """ Callback function to handle re-initializing the particle filter based on a pose estimate.

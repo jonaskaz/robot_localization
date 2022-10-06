@@ -28,6 +28,9 @@ install(PROGRAMS
         robot_localization/pf.py
         DESTINATION lib/${PROJECT_NAME})
 
+install(PROGRAMS
+        robot_localization/visualization.py
+        DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME})
