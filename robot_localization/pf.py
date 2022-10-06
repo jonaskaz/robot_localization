@@ -146,13 +146,13 @@ class ParticleFilter(Node):
             return
         
         (r, theta) = self.transform_helper.convert_scan_to_polar_in_robot_frame(msg, self.base_frame)
-        print("r[0]={0}, theta[0]={1}".format(r[0], theta[0]))
+        # print("r[0]={0}, theta[0]={1}".format(r[0], theta[0]))
         # clear the current scan so that we can process the next one
         self.scan_to_process = None
 
         self.odom_pose = new_pose
         new_odom_xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
-        print("x: {0}, y: {1}, yaw: {2}".format(*new_odom_xy_theta))
+        # print("x: {0}, y: {1}, yaw: {2}".format(*new_odom_xy_theta))
 
         if not self.current_odom_xy_theta:
             self.current_odom_xy_theta = new_odom_xy_theta
@@ -213,25 +213,35 @@ class ParticleFilter(Node):
 
         # Create transformation matrix from position 1 to position 2
         c,s = np.cos(self.current_odom_xy_theta[2]), np.sin(self.current_odom_xy_theta[2])
-        T_current2odom = np.array(  ((c,-s, 0), 
-                                    (s, c, 0), 
-                                    (self.current_odom_xy_theta[0], self.current_odom_xy_theta[1], 1)))
+        T_current2odom = np.array( ((c,-s, self.current_odom_xy_theta[0]), 
+                                    (s, c, self.current_odom_xy_theta[1]), 
+                                    (0, 0, 1)))
         c,s = np.cos(new_odom_xy_theta[2]), np.sin(new_odom_xy_theta[2])
-        T_new2odom = np.array(      ((c,-s, 0), 
-                                    (s, c, 0), 
-                                    (new_odom_xy_theta[0], new_odom_xy_theta[1], 1)))
+        T_new2odom = np.array(     ((c,-s, new_odom_xy_theta[0]), 
+                                    (s, c, new_odom_xy_theta[1]), 
+                                    (0, 0, 1)))
                                     
-        T_new_current = np.matmul(np.linalg.inv(T_current2odom),T_new2odom)
+        T_new2current = np.linalg.inv(T_current2odom) @ T_new2odom
 
-        for particle in self.particle_cloud:
-            particle_mat = np.array(particle.x, particle.y, particle.theta)
-            new_particle_loc = np.matmul(T_new_current, particle_mat)
-            particle.x = new_particle_loc[0]
-            particle.y = new_particle_loc[1]
-            particle.theta = new_particle_loc[2]
+        # for particle in self.particle_cloud:
+        for particle in self.particle_cloud[0:10]:
+            c,s = np.cos(particle.theta), np.sin(particle.theta)
+            # create transformation matrix for particle
+            T_particle = np.array( ((c,-s, particle.x), 
+                                    (s, c, particle.y), 
+                                    (0, 0, 1)))
+            new_particle_loc = T_new2current @ T_particle
+            # print("new_particle_loc:", new_particle_loc)
+            # print("OLD: x, y, theta:" ,particle.x, particle.y, particle.theta)
+
+            particle.x = new_particle_loc[0][2]
+            particle.y = new_particle_loc[1][2]
+            particle.theta = math.acos(new_particle_loc[0][0])
+            # print("UPDATE: x, y, theta:" ,particle.x, particle.y, particle.theta)
             # particle.x = particle.x + delta[0]
             # particle.y = particle.y + delta[1]
             # particle.theta = particle.theta + delta[2]
+            # TODO: add in noise? zero mean gaussian noise, check the textbook to see the best way
 
     def resample_particles(self):
         """ Resample the particles according to the new particle weights.
