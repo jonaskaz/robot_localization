@@ -2,6 +2,7 @@
 
 """ This is the starter code for the robot localization project """
 
+from cmath import inf
 from operator import attrgetter
 import rclpy
 from threading import Thread
@@ -29,7 +30,7 @@ class Particle(object):
             w: the particle weight (the class does not ensure that particle weights are normalized
     """
 
-    def __init__(self, x=0.0, y=0.0, theta=0.0, w=1.0):
+    def __init__(self, x=0.0, y=0.0, theta=0.0, w=0.0):
         """ Construct a new Particle
             x: the x-coordinate of the hypothesis relative to the map frame
             y: the y-coordinate of the hypothesis relative ot the map frame
@@ -115,8 +116,13 @@ class ParticleFilter(Node):
         self.particle_weight_publisher_timer = self.create_timer(3, self.publish_particle_weights)
     
     def publish_particle_weights(self):
+        self.normalize_particles()
+        particle_weight_sum = sum(p.w for p in self.particle_cloud)
+        print(particle_weight_sum)
+
         msg = Float32MultiArray()
         msg.data = [p.w for p in self.particle_cloud]
+        
         self.particle_weight_publisher.publish(msg)
 
     def pub_latest_transform(self):
@@ -271,12 +277,13 @@ class ParticleFilter(Node):
         x_list = draw_random_sample(x_choices, probabilities, self.n_particles)
         y_list = draw_random_sample(y_choices, probabilities, self.n_particles)
         theta_list = draw_random_sample(theta_choices, probabilities, self.n_particles)
+        weight = 1/self.n_particles
         # Clear particle cloud
         self.particle_cloud = []
         # Add new particles to particle cloud
         for i in range(self.n_particles):
             # Create particle
-            particle = Particle(x_list[i], y_list[i], theta_list[i])
+            particle = Particle(x_list[i], y_list[i], theta_list[i], weight)
             # Add to particle list
             self.particle_cloud.append(particle)
 
@@ -297,6 +304,8 @@ class ParticleFilter(Node):
             # Calculate the closest obstacle for each data point from the laser scan
             for i in range(len(r)):
                 laser_theta = theta[i]
+                if np.isinf(r[i]):
+                    continue
                 # Calculate laser scan point location in world frame
                 scan_pt_x = particle.x - r[i]*math.sin(robot_theta+laser_theta)
                 scan_pt_y = particle.y + r[i]*math.cos(robot_theta+laser_theta)
@@ -309,6 +318,8 @@ class ParticleFilter(Node):
             scan_accuracy = num_matching/360
             # Update particle weight using gaussian function centered at x=1 and y range from 0-1
             particle.w = self.gaussian(scan_accuracy, 1, 0.4)
+        
+        self.normalize_particles()
 
     def update_initial_pose(self, msg):
         """ Callback function to handle re-initializing the particle filter based on a pose estimate.
@@ -331,9 +342,10 @@ class ParticleFilter(Node):
         x_list = np.random.normal(xy_theta[0], std, self.n_particles)
         y_list = np.random.normal(xy_theta[1], std, self.n_particles)
         theta_list = np.random.uniform(0,2*math.pi, self.n_particles) # TODO: might be sus, check with Loren
+        weight = 1/self.n_particles
         for i in range(self.n_particles):
             # Create particle
-            particle = Particle(x_list[i], y_list[i], theta_list[i])
+            particle = Particle(x_list[i], y_list[i], theta_list[i], weight)
             # Add to particle list
             self.particle_cloud.append(particle)
 

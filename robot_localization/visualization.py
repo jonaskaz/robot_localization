@@ -11,24 +11,35 @@ from matplotlib.animation import FuncAnimation
 class VisualizationNode(Node):
     def __init__(self):
         super().__init__("vis_node")
-        self.figure, self.ax = plt.subplots(figsize=(10, 8))
-        self.hist = plt.hist([], bins = 20)
-        self.w_data = []
+        plt.ion()
+
+        self.figure, self.ax = plt.subplots(1, 1,
+                                figsize =(5, 5),
+                                tight_layout = True)
+        self.hist, _, _ = self.ax.hist([], bins = 100)
+        
         self.create_subscription(Float32MultiArray, "particle_weights", self.plot_particle_weights, qos_profile_sensor_data)
     
     def plot_particle_weights(self, weights):
-        print(weights.data)
-        # self.w_data = weights
-        # plt.hist(weights.data)
+        # print(weights.data)
+        
+        self.hist, _, _ = self.ax.hist(weights.data, bins = 100)
+        
+        plt.xlim([0, 1])
+        # plt.ylim([0, 300])
+        plt.show()
+        self.figure.canvas.draw()
+        self.figure.canvas.flush_events()
+        plt.cla()
+        
+
 
 def main(args=None):
     rclpy.init(args=args)
 
     vis_node = VisualizationNode()
     rclpy.spin(vis_node)
-
-    # ani = FuncAnimation(vis_node.fig, vis_node.update_plot, init_func=vis_node.plot_init)
-    # plt.show(block=True) 
+    # ani = FuncAnimation(vis_node.fig, vis_node.plot_particle_weights, init_func=vis_node.plot_init)
 
     vis_node.destroy_node()
     rclpy.shutdown()
