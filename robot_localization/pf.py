@@ -111,7 +111,7 @@ class ParticleFilter(Node):
         self.transform_update_timer = self.create_timer(0.05, self.pub_latest_transform)
 
         # Publish particle weights for visualizing
-        self.particle_weight_publisher = self.create_publisher(Float32MultiArray, "particle_weights", 10)
+        self.particle_weight_publisher = self.create_publisher(Float32MultiArray, "particle_weights", qos_profile_sensor_data)
         self.particle_weight_publisher_timer = self.create_timer(3, self.publish_particle_weights)
     
     def publish_particle_weights(self):
@@ -175,7 +175,8 @@ class ParticleFilter(Node):
             self.update_particles_with_laser(r, theta)   # updates weight based on laser scan
             self.update_robot_pose()                # update robot's pose based on particles
             self.resample_particles()               # resample particles to focus on areas of high density
-            self.plot_particle_weights()
+            # self.initialize_plot_particle_weights()
+            # self.plot_particle_weights()
         # publish particles (so things like rviz can see them)
         self.publish_particles(msg.header.stamp)
 
@@ -371,6 +372,9 @@ class ParticleFilter(Node):
             mu: mean
         """
         return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
+    
+
+
 
 def main(args=None):
     rclpy.init()
