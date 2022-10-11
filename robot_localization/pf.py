@@ -77,7 +77,7 @@ class ParticleFilter(Node):
         self.odom_frame = "odom"        # the name of the odometry coordinate frame
         self.scan_topic = "scan"        # the topic where we will get laser scans from 
 
-        self.n_particles = 300          # the number of particles to use
+        self.n_particles = 4          # the number of particles to use
 
         self.d_thresh = 0.2             # the amount of linear movement before performing an update
         self.a_thresh = math.pi/6       # the amount of angular movement before performing an update
@@ -176,9 +176,9 @@ class ParticleFilter(Node):
         elif self.moved_far_enough_to_update(new_odom_xy_theta):
             # we have moved far enough to do an update!
             self.update_particles_with_odom()    # update based on odometry
-            self.update_particles_with_laser(r, theta)   # updates weight based on laser scan
+            #self.update_particles_with_laser(r, theta)   # updates weight based on laser scan
             self.update_robot_pose()                # update robot's pose based on particles
-            self.resample_particles()               # resample particles to focus on areas of high density
+            #self.resample_particles()               # resample particles to focus on areas of high density
             # self.initialize_plot_particle_weights()
             # self.plot_particle_weights()
         # publish particles (so things like rviz can see them)
@@ -248,7 +248,7 @@ class ParticleFilter(Node):
             new_particle_loc = np.dot(T_new2current, T_particle)
             particle.x = new_particle_loc[0]
             particle.y = new_particle_loc[1]
-            particle.theta = particle.theta + delta[2] - np.pi/2
+            particle.theta = (particle.theta + delta[2] - np.pi/2) % (2*np.pi)
 
             # TODO: add in noise? zero mean gaussian noise, check the textbook to see the best way
 
@@ -308,7 +308,8 @@ class ParticleFilter(Node):
                 scan_pt_y = particle.y + r[i]*math.cos(robot_theta+laser_theta)
                 # Find distance to the closest obstacle from the scan point
                 closest_obstacle_dist = self.occupancy_field.get_closest_obstacle_distance(scan_pt_x, scan_pt_y)
-                particle.w += self.gaussian(-closest_obstacle_dist, 0, 0.5)
+                if not np.isnan(closest_obstacle_dist):
+                    particle.w += self.compute_prob_zero_centered_gaussian(closest_obstacle_dist, 0.1)
             if np.isnan(particle.w):
                 particle.w = 0
         self.normalize_particles()
@@ -381,6 +382,13 @@ class ParticleFilter(Node):
             mu: mean
         """
         return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
+
+    def compute_prob_zero_centered_gaussian(self, dist, sd):
+        """ Takes in distance from zero (dist) and standard deviation (sd) for gaussian
+            and returns probability (likelihood) of observation """
+        c = 1.0 / (sd * math.sqrt(2 * math.pi))
+        prob = c * math.exp((-math.pow(dist,2))/(2 * math.pow(sd, 2)))
+        return prob
 
 
 
