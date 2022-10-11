@@ -30,7 +30,7 @@ class Particle(object):
             w: the particle weight (the class does not ensure that particle weights are normalized
     """
 
-    def __init__(self, x=0.0, y=0.0, theta=0.0, w=0.0):
+    def __init__(self, x=0.0, y=0.0, theta=0.0, w=1.0/360):
         """ Construct a new Particle
             x: the x-coordinate of the hypothesis relative to the map frame
             y: the y-coordinate of the hypothesis relative ot the map frame
@@ -349,11 +349,15 @@ class ParticleFilter(Node):
         """ Make sure the particle weights define a valid distribution (i.e. sum to 1.0) """
         # Get sum of weights
         particle_weight_sum = sum(p.w for p in self.particle_cloud)
-        # Divide the sum by 1 to get scale factor
-        scale = 1/particle_weight_sum
-        # Normalize particles with new scale
-        for i in range(self.n_particles):
-            self.particle_cloud[i].w = self.particle_cloud[i].w * scale
+        if particle_weight_sum == 0:
+            for p in self.particle_cloud:
+                p.w = 1/360
+        else:
+            # Divide the sum by 1 to get scale factor
+            scale = 1/particle_weight_sum
+            # Normalize particles with new scale
+            for i in range(self.n_particles):
+                self.particle_cloud[i].w = self.particle_cloud[i].w * scale
 
     def publish_particles(self, timestamp):
         particles_conv = []
