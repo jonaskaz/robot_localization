@@ -209,7 +209,6 @@ class ParticleFilter(Node):
         self.normalize_particles()
         # Jackie's code below
         # Compute the mean pose by incorporating the weights
-        print([p.w for p in self.particle_cloud])
         x_mean = sum(p.x*p.w for p in self.particle_cloud)
         y_mean = sum(p.y*p.w for p in self.particle_cloud)
         theta_best = max(self.particle_cloud, key=attrgetter("w")).theta
@@ -286,19 +285,21 @@ class ParticleFilter(Node):
         probabilities = [p.w for p in self.particle_cloud]
         weight = 1/self.n_particles
         # Clear particle cloud
-        self.particle_cloud = []
         # Add new particles to particle cloud
 
-        new_samples = draw_random_sample(self.particle_cloud, probabilities, self.n_particles)
-
-        for i in range(self.n_particles):
+        new_samples = draw_random_sample(list(range(self.n_particles)), probabilities, self.n_particles)
+        new_particle_cloud = []
+        for i in new_samples:
             x_noise = np.random.normal(0, 0.1)
             y_noise = np.random.normal(0, 0.1)
-            theta_noise = np.random.normal(0, 0.1)
+            theta_noise = np.random.normal(0, 0.5)
             # Create particle
-            particle = Particle(new_samples[i].x + x_noise, new_samples[i].y + y_noise, (new_samples[i].theta + theta_noise) % (2*np.pi), weight)
+            particle = Particle(self.particle_cloud[i].x + x_noise, self.particle_cloud[i].y + y_noise, (self.particle_cloud[i].theta + theta_noise) % (2*np.pi), weight)
             # Add to particle list
-            self.particle_cloud.append(particle)
+            new_particle_cloud.append(particle)
+
+        
+        self.particle_cloud = new_particle_cloud
 
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
@@ -326,7 +327,7 @@ class ParticleFilter(Node):
                 # Find distance to the closest obstacle from the scan point
                 closest_obstacle_dist = self.occupancy_field.get_closest_obstacle_distance(scan_pt_x, scan_pt_y)
                 if not np.isnan(closest_obstacle_dist):
-                    particle.w += self.compute_prob_zero_centered_gaussian(closest_obstacle_dist, 0.5)
+                    particle.w += self.compute_prob_zero_centered_gaussian(closest_obstacle_dist, 0.5)**3
             if np.isnan(particle.w):
                 particle.w = 0
         self.normalize_particles()

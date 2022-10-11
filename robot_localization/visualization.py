@@ -5,7 +5,7 @@ from rclpy.qos import qos_profile_sensor_data
 from rclpy.node import Node
 from std_msgs.msg import Float32MultiArray
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
+import numpy as np
 
 
 class VisualizationNode(Node):
@@ -16,9 +16,38 @@ class VisualizationNode(Node):
         self.figure, self.ax = plt.subplots(1, 1,
                                 figsize =(5, 5),
                                 tight_layout = True)
-        self.hist, _, _ = self.ax.hist([], bins = 100)
+        plt.axis('equal')
+        self.x = []
+        self.y = []
+        self.weights = []
         
-        self.create_subscription(Float32MultiArray, "particle_weights", self.plot_particle_weights, qos_profile_sensor_data)
+        self.create_subscription(Float32MultiArray, "particle_weights", self.process_weights, qos_profile_sensor_data)
+        self.create_subscription(Float32MultiArray, "particle_x", self.process_x, qos_profile_sensor_data)
+        self.create_subscription(Float32MultiArray, "particle_y", self.process_y, qos_profile_sensor_data)
+        self.create_timer(5, self.plot_particles_with_weights)
+    
+    def plot_particles_with_weights(self):
+        if len(self.x) == 0:
+            return
+        print(self.x)
+        
+        self.scat = self.ax.scatter(self.x, self.y, s=np.array(self.weights)*500)
+        
+       # plt.xlim([0, 0.2])
+        # plt.ylim([0, 300])
+        plt.show()
+        self.figure.canvas.draw()
+        self.figure.canvas.flush_events()
+        plt.cla()
+
+    def process_x(self, x):
+        self.x = x.data
+
+    def process_y(self, y):
+        self.y = y.data
+
+    def process_weights(self, weights):
+        self.weights = weights.data
     
     def plot_particle_weights(self, weights):
         if len(set(weights.data)) <= 1:
