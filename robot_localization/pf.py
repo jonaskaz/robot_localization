@@ -82,6 +82,8 @@ class ParticleFilter(Node):
         self.d_thresh = 0.2             # the amount of linear movement before performing an update
         self.a_thresh = math.pi/6       # the amount of angular movement before performing an update
 
+        self.resample_pcnt = 0.1
+
         # TODO: define additional constants if needed
 
         # pose_listener responds to selection of a new approximate robot location (for instance using rviz)
@@ -287,18 +289,24 @@ class ParticleFilter(Node):
         # Clear particle cloud
         # Add new particles to particle cloud
 
-        new_samples = draw_random_sample(list(range(self.n_particles)), probabilities, self.n_particles)
-        new_particle_cloud = []
-        for i in new_samples:
+        tmp_particle_cloud_copy = np.array(self.particle_cloud).copy()
+        num_resample = int(self.resample_pcnt * self.n_particles)
+        samples_replace = draw_random_sample(list(range(self.n_particles)),
+                                             1-np.array(probabilities),
+                                             num_resample)
+        new_samples = draw_random_sample(list(range(self.n_particles)),
+                                         np.array(probabilities), num_resample)
+        for i in range(num_resample):
             x_noise = np.random.normal(0, 0.1)
             y_noise = np.random.normal(0, 0.1)
             theta_noise = np.random.normal(0, 0.5)
             # Create particle
-            particle = Particle(self.particle_cloud[i].x + x_noise, self.particle_cloud[i].y + y_noise, (self.particle_cloud[i].theta + theta_noise) % (2*np.pi), weight)
-            # Add to particle list
-            new_particle_cloud.append(particle)
+            particle = Particle(tmp_particle_cloud_copy[new_samples[i]].x +
+                                x_noise,
+                                tmp_particle_cloud_copy[new_samples[i]].y +
+                                y_noise, (tmp_particle_cloud_copy[new_samples[i]].theta + theta_noise) % (2*np.pi), weight)
+            self.particle_cloud[samples_replace[i]] = particle
 
-        
         self.particle_cloud = new_particle_cloud
 
     def update_particles_with_laser(self, r, theta):
