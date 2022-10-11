@@ -302,6 +302,7 @@ class ParticleFilter(Node):
             # Number of scan points that match with an obstacle in the map
             num_matching = 0
             # Calculate the closest obstacle for each data point from the laser scan
+            particle.w = 0
             for i in range(len(r)):
                 laser_theta = theta[i]
                 if np.isinf(r[i]):
@@ -311,14 +312,7 @@ class ParticleFilter(Node):
                 scan_pt_y = particle.y + r[i]*math.cos(robot_theta+laser_theta)
                 # Find distance to the closest obstacle from the scan point
                 closest_obstacle_dist = self.occupancy_field.get_closest_obstacle_distance(scan_pt_x, scan_pt_y)
-                # TODO: Ask in class if there is a better way to do this
-                # If distance is less than 0.1 m, we count it as accurate
-                if closest_obstacle_dist <= 0.05:
-                    num_matching += 1
-            scan_accuracy = num_matching/360
-            # Update particle weight using gaussian function centered at x=1 and y range from 0-1
-            particle.w = self.gaussian(scan_accuracy, 1, 0.4)
-        
+                particle.w += self.gaussian(-closest_obstacle_dist, 0, 0.5)
         self.normalize_particles()
 
     def update_initial_pose(self, msg):
@@ -384,7 +378,6 @@ class ParticleFilter(Node):
             mu: mean
         """
         return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
-    
 
 
 
