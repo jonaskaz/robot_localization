@@ -21,11 +21,12 @@ class VisualizationNode(Node):
         self.create_subscription(Float32MultiArray, "particle_weights", self.plot_particle_weights, qos_profile_sensor_data)
     
     def plot_particle_weights(self, weights):
-        # print(weights.data)
+        if len(set(weights.data)) <= 1:
+            return
         
         self.hist, _, _ = self.ax.hist(weights.data, bins = 100)
         
-        plt.xlim([0, 1])
+        plt.xlim([0, 0.2])
         # plt.ylim([0, 300])
         plt.show()
         self.figure.canvas.draw()

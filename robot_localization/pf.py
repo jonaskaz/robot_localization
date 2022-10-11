@@ -113,10 +113,8 @@ class ParticleFilter(Node):
 
         # Publish particle weights for visualizing
         self.particle_weight_publisher = self.create_publisher(Float32MultiArray, "particle_weights", qos_profile_sensor_data)
-        self.particle_weight_publisher_timer = self.create_timer(3, self.publish_particle_weights)
     
     def publish_particle_weights(self):
-        self.normalize_particles()
         particle_weight_sum = sum(p.w for p in self.particle_cloud)
         print(particle_weight_sum)
 
@@ -248,17 +246,15 @@ class ParticleFilter(Node):
             # create transformation matrix for particle
             T_particle = np.array((particle.x, particle.y, 1))
             new_particle_loc = np.dot(T_new2current, T_particle)
-            # print("new_particle_loc:", new_particle_loc)
-            # print("OLD: x, y, theta:" ,particle.x, particle.y, particle.theta)
-            
             particle.x = new_particle_loc[0]
             particle.y = new_particle_loc[1]
             particle.theta = particle.theta + delta[2] - np.pi/2
-            # print("UPDATE: x, y, theta:" ,particle.x, particle.y, particle.theta)
-            # particle.x = particle.x + delta[0]
-            # particle.y = particle.y + delta[1]
-            # particle.theta = particle.theta + delta[2]
+
             # TODO: add in noise? zero mean gaussian noise, check the textbook to see the best way
+
+    @staticmethod
+    def add_noise(particle):
+        pass
 
     def resample_particles(self):
         """ Resample the particles according to the new particle weights.
@@ -313,7 +309,10 @@ class ParticleFilter(Node):
                 # Find distance to the closest obstacle from the scan point
                 closest_obstacle_dist = self.occupancy_field.get_closest_obstacle_distance(scan_pt_x, scan_pt_y)
                 particle.w += self.gaussian(-closest_obstacle_dist, 0, 0.5)
+            if np.isnan(particle.w):
+                particle.w = 0
         self.normalize_particles()
+        self.publish_particle_weights()
 
     def update_initial_pose(self, msg):
         """ Callback function to handle re-initializing the particle filter based on a pose estimate.
