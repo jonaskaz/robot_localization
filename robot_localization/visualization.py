@@ -29,12 +29,12 @@ class VisualizationNode(Node):
     def plot_particles_with_weights(self):
         if len(self.x) == 0:
             return
-        print(self.x)
+        print(self.x, self.y, self.weights)
         
         self.scat = self.ax.scatter(self.x, self.y, s=np.array(self.weights)*500)
+        plt.xlim([-1.3, 2.3])
+        plt.ylim([-3, 0.8])
         
-       # plt.xlim([0, 0.2])
-        # plt.ylim([0, 300])
         plt.show()
         self.figure.canvas.draw()
         self.figure.canvas.flush_events()

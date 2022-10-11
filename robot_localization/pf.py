@@ -77,7 +77,7 @@ class ParticleFilter(Node):
         self.odom_frame = "odom"        # the name of the odometry coordinate frame
         self.scan_topic = "scan"        # the topic where we will get laser scans from 
 
-        self.n_particles = 3          # the number of particles to use
+        self.n_particles = 200          # the number of particles to use
 
         self.d_thresh = 0.2             # the amount of linear movement before performing an update
         self.a_thresh = math.pi/6       # the amount of angular movement before performing an update
@@ -188,8 +188,6 @@ class ParticleFilter(Node):
             self.update_particles_with_laser(r, theta)   # updates weight based on laser scan
             self.update_robot_pose()                # update robot's pose based on particles
             self.resample_particles()               # resample particles to focus on areas of high density
-            # self.initialize_plot_particle_weights()
-            # self.plot_particle_weights()
         # publish particles (so things like rviz can see them)
         self.publish_particles(msg.header.stamp)
 
@@ -272,6 +270,23 @@ class ParticleFilter(Node):
     def add_noise(particle):
         pass
 
+    def get_particles_in_bounding_box(self):
+        particles_in_map = []
+        for p in self.particle_cloud:
+            xrange, yrange = self.occupancy_field.get_obstacle_bounding_box()
+            # Skip particles that are not in the map range
+            if p.x < xrange[0] or p.x > xrange[1]:
+                continue
+            if p.y < yrange[0] or p.y > yrange[1]:
+                continue
+            particles_in_map.append(p)
+        particle_weight_sum = sum(p.w for p in particles_in_map)
+        scale = 1/particle_weight_sum
+        # Normalize particles with new scale
+        for i in range(len(particles_in_map)):
+            particles_in_map[i].w = particles_in_map[i].w * scale
+        return particles_in_map
+
     def resample_particles(self):
         """ Resample the particles according to the new particle weights.
             The weights stored with each particle should define the probability that a particular
@@ -282,23 +297,23 @@ class ParticleFilter(Node):
         self.normalize_particles()
         # TODO: fill out the rest of the implementation
         # Resample based on weight of particle
-        probabilities = [p.w for p in self.particle_cloud]
         weight = 1/self.n_particles
         # Clear particle cloud
         # Add new particles to particle cloud
-
-        new_samples = draw_random_sample(list(range(self.n_particles)), probabilities, self.n_particles)
+        # TODO: Fix this to use particles only in the map
+        particles_in_map = self.particle_cloud #self.get_particles_in_bounding_box()
+        probabilities = [p.w for p in particles_in_map]
+        new_samples = draw_random_sample(list(range(len(particles_in_map))), probabilities, self.n_particles)
         new_particle_cloud = []
         for i in new_samples:
             x_noise = np.random.normal(0, 0.1)
             y_noise = np.random.normal(0, 0.1)
-            theta_noise = np.random.normal(0, 0.5)
+            theta_noise = np.random.normal(0, 0.3)
             # Create particle
-            particle = Particle(self.particle_cloud[i].x + x_noise, self.particle_cloud[i].y + y_noise, (self.particle_cloud[i].theta + theta_noise) % (2*np.pi), weight)
+            particle = Particle(particles_in_map[i].x + x_noise, particles_in_map[i].y + y_noise, (particles_in_map[i].theta + theta_noise) % (2*np.pi), weight)
             # Add to particle list
             new_particle_cloud.append(particle)
 
-        
         self.particle_cloud = new_particle_cloud
 
     def update_particles_with_laser(self, r, theta):
