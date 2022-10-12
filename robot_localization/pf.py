@@ -82,7 +82,7 @@ class ParticleFilter(Node):
         self.d_thresh = 0.2             # the amount of linear movement before performing an update
         self.a_thresh = math.pi/6       # the amount of angular movement before performing an update
 
-        self.resample_pcnt = 0.1
+        self.resample_pcnt = 0.3
 
         # TODO: define additional constants if needed
 
@@ -269,61 +269,26 @@ class ParticleFilter(Node):
             new_particle_loc = T_particle @ T_new2current           
             particle.x = new_particle_loc[0][2]
             particle.y = new_particle_loc[1][2]
-            particle.theta = np.arccos(new_particle_loc[0][0])
-            # particle.theta = (particle.theta + delta[2]) % (2*np.pi)
-
-            # TODO: add in noise? zero mean gaussian noise, check the textbook to see the best way
-
-    @staticmethod
-    def add_noise(particle):
-        pass
-
-    def keep_particles_in_bounding_box(self):
-        ''' Go through particles and set the weight of everyhting outside the map to be zero
-        '''
-        particles_in_map = []
-        for p in self.particle_cloud:
-            xrange, yrange = self.occupancy_field.get_obstacle_bounding_box()
-            # Skip particles that are not in the map range
-            if p.x < xrange[0] or p.x > xrange[1]:
-                p.w = 0
-            if p.y < yrange[0] or p.y > yrange[1]:
-                p.w = 0
-        self.normalize_particles()
-            
+            particle.theta = np.arctan2(new_particle_loc[1][0], new_particle_loc[0][0])
+    
     def resample_particles(self):
-        """ Resample the particles according to the new particle weights.
-            The weights stored with each particle should define the probability that a particular
-            particle is selected in the resampling step.  You may want to make use of the given helper
-            function draw_random_sample in helper_functions.py.
-        """
-        # make sure the distribution is normalized
         self.normalize_particles()
-        # TODO: fill out the rest of the implementation
         # Resample based on weight of particle
         weight = 1/self.n_particles
-        self.keep_particles_in_bounding_box()
-        tmp_particle_cloud_copy = np.array(self.particle_cloud).copy()
-        probabilities = [p.w for p in tmp_particle_cloud_copy]
-        num_resample = int(self.resample_pcnt * self.n_particles)
-        particles_to_replace = draw_random_sample(list(range(self.n_particles)),
-                                             1-np.array(probabilities),
-                                             num_resample)
-        new_particles = draw_random_sample(list(range(self.n_particles)),
-                                         np.array(probabilities), num_resample)
-        for i in range(num_resample):
-            x_noise = np.random.normal(0, 0.05)
-            y_noise = np.random.normal(0, 0.05)
+        probabilities = [p.w for p in self.particle_cloud]
+
+        new_particles = draw_random_sample(self.particle_cloud,
+                                         np.array(probabilities), self.n_particles)
+        for p in new_particles:
+            x_noise = np.random.normal(0, 0.03)
+            y_noise = np.random.normal(0, 0.03)
             theta_noise = np.random.normal(0, 0.2)
-            # x_noise = 0
-            # y_noise = 0
-            # theta_noise = 0
-            # Create particle
-            particle = Particle(tmp_particle_cloud_copy[new_particles[i]].x + x_noise,
-                                tmp_particle_cloud_copy[new_particles[i]].y + y_noise, 
-                     
-                                (tmp_particle_cloud_copy[new_particles[i]].theta + theta_noise) % (2*np.pi), weight)
-            self.particle_cloud[particles_to_replace[i]] = particle
+            p.x += x_noise
+            p.y += y_noise
+            p.theta += theta_noise % (2*np.pi)
+            p.w = weight
+
+        self.particle_cloud = new_particles
 
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
@@ -331,46 +296,28 @@ class ParticleFilter(Node):
             theta: the angle relative to the robot frame for each corresponding reading 
         """
 
-        # TODO: implement this
-        # for particle in self.particle_cloud:
-        #     # angle the robot is pointing relative to the world frame
-        #     robot_theta = particle.theta
-        #     # List for closest obstacle distances
-        #     closest_obstacle_dist = []
-        #     # Number of scan points that match with an obstacle in the map
-        #     num_matching = 0
-        #     # Calculate the closest obstacle for each data point from the laser scan
-        #     particle.w = 0
-        #     for i in range(len(r)):
-        #         laser_theta = theta[i]
-        #         if np.isinf(r[i]):
-        #             continue
-        #         # Calculate laser scan point location in world frame
-        #         scan_pt_x = particle.x + r[i]*math.cos(robot_theta+laser_theta)
-        #         scan_pt_y = particle.y + r[i]*math.sin(robot_theta+laser_theta)
-        #         # Find distance to the closest obstacle from the scan point
-        #         closest_obstacle_dist = self.occupancy_field.get_closest_obstacle_distance(scan_pt_x, scan_pt_y)
-        #         if not np.isnan(closest_obstacle_dist):
-        #             particle.w += self.compute_prob_zero_centered_gaussian(closest_obstacle_dist, 0.5)**3
-        #     if np.isnan(particle.w):
-        #         particle.w = 0
-        # self.normalize_particles()
-        # self.publish_particle_weight_x_y()
-
-        # Reference code
         for particle in self.particle_cloud:
-            dist = []
-            for i in range(0, len(r)):
-                x = particle.x + r[i] * math.cos(theta[i] + particle.theta)
-                y = particle.y + r[i] * math.sin(theta[i] + particle.theta)
-                if abs(x) < 100 and abs(y) < 100:
-                    d = self.occupancy_field.get_closest_obstacle_distance(x, y)
-                    if d > 0.0001 and d < 1500:
-                        dist.append(d**2)
-            if len(dist) > 0:
-                particle.w = float((1 / np.mean(dist))**2)
-            else:
-                particle.w = 0.0
+            # angle the robot is pointing relative to the world frame
+            robot_theta = particle.theta
+            # List for closest obstacle distances
+            closest_obstacle_dist = []
+            # Calculate the closest obstacle for each data point from the laser scan
+            particle.w = 0
+            for i in range(len(r)):
+                laser_theta = theta[i]
+                if np.isinf(r[i]):
+                    continue
+                # Calculate laser scan point location in world frame
+                scan_pt_x = particle.x + r[i]*math.cos(robot_theta+laser_theta)
+                scan_pt_y = particle.y + r[i]*math.sin(robot_theta+laser_theta)
+                # Find distance to the closest obstacle from the scan point
+                closest_obstacle_dist = self.occupancy_field.get_closest_obstacle_distance(scan_pt_x, scan_pt_y)
+                if not np.isnan(closest_obstacle_dist):
+                    particle.w += self.gaussian(closest_obstacle_dist, 0, 0.1)**3
+            if np.isnan(particle.w):
+                particle.w = 0
+        self.normalize_particles()
+        self.publish_particle_weight_x_y()
 
     def update_initial_pose(self, msg):
         """ Callback function to handle re-initializing the particle filter based on a pose estimate.
@@ -389,7 +336,7 @@ class ParticleFilter(Node):
         # Creates uniform gaussian distribution around p    oint.
         # random.normal(mean, standard deviation, size)
         # std = determines the spread of the initial particle cloud
-        std = 0.3
+        std = 0.9
         x_list = np.random.normal(xy_theta[0], std, self.n_particles)
         y_list = np.random.normal(xy_theta[1], std, self.n_particles)
         theta_list = np.random.uniform(0,2*math.pi, self.n_particles) # TODO: might be sus, check with Loren
@@ -439,14 +386,6 @@ class ParticleFilter(Node):
             mu: mean
         """
         return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
-
-    def compute_prob_zero_centered_gaussian(self, dist, sd):
-        """ Takes in distance from zero (dist) and standard deviation (sd) for gaussian
-            and returns probability (likelihood) of observation """
-        c = 1.0 / (sd * math.sqrt(2 * math.pi))
-        prob = c * math.exp((-math.pow(dist,2))/(2 * math.pow(sd, 2)))
-        return prob
-
 
 
 def main(args=None):
