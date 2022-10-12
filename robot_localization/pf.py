@@ -212,6 +212,12 @@ class ParticleFilter(Node):
         x_mean = sum(p.x*p.w for p in self.particle_cloud)
         y_mean = sum(p.y*p.w for p in self.particle_cloud)
         theta_best = max(self.particle_cloud, key=attrgetter("w")).theta
+
+        # x_mode = float(np.average([particle.x for particle in self.particle_cloud]))
+        # y_mode = float(np.average([particle.y for particle in self.particle_cloud]))
+        # theta_mode = float(np.average([particle.theta for particle in self.particle_cloud]))
+        # mean_pose = Particle(x_mode, y_mode, theta_mode)
+
         mean_pose = Particle(x_mean, y_mean, theta_best)
         self.robot_pose = mean_pose.as_pose()
         self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
@@ -272,23 +278,19 @@ class ParticleFilter(Node):
     def add_noise(particle):
         pass
 
-    def get_particles_in_bounding_box(self):
+    def keep_particles_in_bounding_box(self):
+        ''' Go through particles and set the weight of everyhting outside the map to be zero
+        '''
         particles_in_map = []
         for p in self.particle_cloud:
             xrange, yrange = self.occupancy_field.get_obstacle_bounding_box()
             # Skip particles that are not in the map range
             if p.x < xrange[0] or p.x > xrange[1]:
-                continue
+                p.w = 0
             if p.y < yrange[0] or p.y > yrange[1]:
-                continue
-            particles_in_map.append(p)
-        particle_weight_sum = sum(p.w for p in particles_in_map)
-        scale = 1/particle_weight_sum
-        # Normalize particles with new scale
-        for i in range(len(particles_in_map)):
-            particles_in_map[i].w = particles_in_map[i].w * scale
-        return particles_in_map
-
+                p.w = 0
+        self.normalize_particles()
+            
     def resample_particles(self):
         """ Resample the particles according to the new particle weights.
             The weights stored with each particle should define the probability that a particular
@@ -300,23 +302,28 @@ class ParticleFilter(Node):
         # TODO: fill out the rest of the implementation
         # Resample based on weight of particle
         weight = 1/self.n_particles
+        self.keep_particles_in_bounding_box()
         tmp_particle_cloud_copy = np.array(self.particle_cloud).copy()
         probabilities = [p.w for p in tmp_particle_cloud_copy]
         num_resample = int(self.resample_pcnt * self.n_particles)
-        samples_replace = draw_random_sample(list(range(self.n_particles)),
+        particles_to_replace = draw_random_sample(list(range(self.n_particles)),
                                              1-np.array(probabilities),
                                              num_resample)
-        new_samples = draw_random_sample(list(range(self.n_particles)),
+        new_particles = draw_random_sample(list(range(self.n_particles)),
                                          np.array(probabilities), num_resample)
         for i in range(num_resample):
-            x_noise = np.random.normal(0, 0.1)
-            y_noise = np.random.normal(0, 0.1)
-            theta_noise = np.random.normal(0, 0.3)
+            x_noise = np.random.normal(0, 0.05)
+            y_noise = np.random.normal(0, 0.05)
+            theta_noise = np.random.normal(0, 0.2)
+            # x_noise = 0
+            # y_noise = 0
+            # theta_noise = 0
             # Create particle
-            particle = Particle(tmp_particle_cloud_copy[new_samples[i]].x + x_noise,
-                                tmp_particle_cloud_copy[new_samples[i]].y + y_noise, 
-                                (tmp_particle_cloud_copy[new_samples[i]].theta + theta_noise) % (2*np.pi), weight)
-            self.particle_cloud[samples_replace[i]] = particle
+            particle = Particle(tmp_particle_cloud_copy[new_particles[i]].x + x_noise,
+                                tmp_particle_cloud_copy[new_particles[i]].y + y_noise, 
+                     
+                                (tmp_particle_cloud_copy[new_particles[i]].theta + theta_noise) % (2*np.pi), weight)
+            self.particle_cloud[particles_to_replace[i]] = particle
 
     def update_particles_with_laser(self, r, theta):
         """ Updates the particle weights in response to the scan data
@@ -325,30 +332,45 @@ class ParticleFilter(Node):
         """
 
         # TODO: implement this
+        # for particle in self.particle_cloud:
+        #     # angle the robot is pointing relative to the world frame
+        #     robot_theta = particle.theta
+        #     # List for closest obstacle distances
+        #     closest_obstacle_dist = []
+        #     # Number of scan points that match with an obstacle in the map
+        #     num_matching = 0
+        #     # Calculate the closest obstacle for each data point from the laser scan
+        #     particle.w = 0
+        #     for i in range(len(r)):
+        #         laser_theta = theta[i]
+        #         if np.isinf(r[i]):
+        #             continue
+        #         # Calculate laser scan point location in world frame
+        #         scan_pt_x = particle.x + r[i]*math.cos(robot_theta+laser_theta)
+        #         scan_pt_y = particle.y + r[i]*math.sin(robot_theta+laser_theta)
+        #         # Find distance to the closest obstacle from the scan point
+        #         closest_obstacle_dist = self.occupancy_field.get_closest_obstacle_distance(scan_pt_x, scan_pt_y)
+        #         if not np.isnan(closest_obstacle_dist):
+        #             particle.w += self.compute_prob_zero_centered_gaussian(closest_obstacle_dist, 0.5)**3
+        #     if np.isnan(particle.w):
+        #         particle.w = 0
+        # self.normalize_particles()
+        # self.publish_particle_weight_x_y()
+
+        # Reference code
         for particle in self.particle_cloud:
-            # angle the robot is pointing relative to the world frame
-            robot_theta = particle.theta
-            # List for closest obstacle distances
-            closest_obstacle_dist = []
-            # Number of scan points that match with an obstacle in the map
-            num_matching = 0
-            # Calculate the closest obstacle for each data point from the laser scan
-            particle.w = 0
-            for i in range(len(r)):
-                laser_theta = theta[i]
-                if np.isinf(r[i]):
-                    continue
-                # Calculate laser scan point location in world frame
-                scan_pt_x = particle.x + r[i]*math.cos(robot_theta+laser_theta)
-                scan_pt_y = particle.y + r[i]*math.sin(robot_theta+laser_theta)
-                # Find distance to the closest obstacle from the scan point
-                closest_obstacle_dist = self.occupancy_field.get_closest_obstacle_distance(scan_pt_x, scan_pt_y)
-                if not np.isnan(closest_obstacle_dist):
-                    particle.w += self.compute_prob_zero_centered_gaussian(closest_obstacle_dist, 0.5)**3
-            if np.isnan(particle.w):
-                particle.w = 0
-        self.normalize_particles()
-        self.publish_particle_weight_x_y()
+            dist = []
+            for i in range(0, len(r)):
+                x = particle.x + r[i] * math.cos(theta[i] + particle.theta)
+                y = particle.y + r[i] * math.sin(theta[i] + particle.theta)
+                if abs(x) < 100 and abs(y) < 100:
+                    d = self.occupancy_field.get_closest_obstacle_distance(x, y)
+                    if d > 0.0001 and d < 1500:
+                        dist.append(d**2)
+            if len(dist) > 0:
+                particle.w = float((1 / np.mean(dist))**2)
+            else:
+                particle.w = 0.0
 
     def update_initial_pose(self, msg):
         """ Callback function to handle re-initializing the particle filter based on a pose estimate.
