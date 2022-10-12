@@ -301,13 +301,14 @@ class ParticleFilter(Node):
         # Resample based on weight of particle
         weight = 1/self.n_particles
         tmp_particle_cloud_copy = np.array(self.particle_cloud).copy()
+        probabilities = [p.w for p in tmp_particle_cloud_copy]
         num_resample = int(self.resample_pcnt * self.n_particles)
         samples_replace = draw_random_sample(list(range(self.n_particles)),
                                              1-np.array(probabilities),
                                              num_resample)
         new_samples = draw_random_sample(list(range(self.n_particles)),
                                          np.array(probabilities), num_resample)
-        for i in new_samples:
+        for i in range(num_resample):
             x_noise = np.random.normal(0, 0.1)
             y_noise = np.random.normal(0, 0.1)
             theta_noise = np.random.normal(0, 0.3)
