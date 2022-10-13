@@ -16,7 +16,7 @@ import math
 import time
 import numpy as np
 from occupancy_field import OccupancyField
-from helper_functions import TFHelper, draw_random_sample
+from helper_functions import TFHelper, draw_random_sample, gaussian, calculate_mean_angle
 from rclpy.qos import qos_profile_sensor_data
 from angle_helpers import quaternion_from_euler
 
@@ -77,7 +77,7 @@ class ParticleFilter(Node):
         self.odom_frame = "odom"        # the name of the odometry coordinate frame
         self.scan_topic = "scan"        # the topic where we will get laser scans from 
 
-        self.n_particles = 200          # the number of particles to use
+        self.n_particles = 300          # the number of particles to use
 
         self.d_thresh = 0.2             # the amount of linear movement before performing an update
         self.a_thresh = math.pi/6       # the amount of angular movement before performing an update
@@ -204,21 +204,19 @@ class ParticleFilter(Node):
             There are two logical methods for this:
                 (1): compute the mean pose
                 (2): compute the most likely pose (i.e. the mode of the distribution)
+
+            Note: we decided to use the mean pose approach since it prevents the 
+            pose from jumping around as much
         """
         # first make sure that the particle weights are normalized
         self.normalize_particles()
-        # Jackie's code below
+
         # Compute the mean pose by incorporating the weights
         x_mean = sum(p.x*p.w for p in self.particle_cloud)
         y_mean = sum(p.y*p.w for p in self.particle_cloud)
-        theta_best = max(self.particle_cloud, key=attrgetter("w")).theta
+        theta_mean = calculate_mean_angle([p.theta for p in self.particle_cloud])
 
-        # x_mode = float(np.average([particle.x for particle in self.particle_cloud]))
-        # y_mode = float(np.average([particle.y for particle in self.particle_cloud]))
-        # theta_mode = float(np.average([particle.theta for particle in self.particle_cloud]))
-        # mean_pose = Particle(x_mode, y_mode, theta_mode)
-
-        mean_pose = Particle(x_mean, y_mean, theta_best)
+        mean_pose = Particle(x_mean, y_mean, theta_mean)
         self.robot_pose = mean_pose.as_pose()
         self.transform_helper.fix_map_to_odom_transform(self.robot_pose,
                                                 self.odom_pose)
@@ -234,10 +232,6 @@ class ParticleFilter(Node):
         
         # compute the change in x,y,theta since our last update
         if self.current_odom_xy_theta:
-            old_odom_xy_theta = self.current_odom_xy_theta
-            delta = (new_odom_xy_theta[0] - self.current_odom_xy_theta[0], # x delta
-                     new_odom_xy_theta[1] - self.current_odom_xy_theta[1], # y delta
-                     new_odom_xy_theta[2] - self.current_odom_xy_theta[2]) # theta delta
 
             # Create transformation matrix from position 1 to position 2
             c,s = np.cos(self.current_odom_xy_theta[2]), np.sin(self.current_odom_xy_theta[2])
@@ -257,16 +251,16 @@ class ParticleFilter(Node):
             self.current_odom_xy_theta = new_odom_xy_theta
             return
 
-        # for particle in self.particle_cloud:
+        # Apply transformation to the particles
         for particle in self.particle_cloud:
-            c,s = np.cos(particle.theta), np.sin(particle.theta)
-            # create transformation matrix for particle
-            # T_particle = np.array((particle.x, particle.y, 1))
+            # Create matrix for the particle so we can apply the transformation
             c,s = np.cos(particle.theta), np.sin(particle.theta)
             T_particle = np.array(     ((c,-s, particle.x), 
                                         (s, c, particle.y), 
-                                        (0, 0, 1)))  
-            new_particle_loc = T_particle @ T_new2current           
+                                        (0, 0, 1)))
+            # Apply particle transformation
+            new_particle_loc = T_particle @ T_new2current
+                   
             particle.x = new_particle_loc[0][2]
             particle.y = new_particle_loc[1][2]
             particle.theta = np.arctan2(new_particle_loc[1][0], new_particle_loc[0][0])
@@ -313,7 +307,7 @@ class ParticleFilter(Node):
                 # Find distance to the closest obstacle from the scan point
                 closest_obstacle_dist = self.occupancy_field.get_closest_obstacle_distance(scan_pt_x, scan_pt_y)
                 if not np.isnan(closest_obstacle_dist):
-                    particle.w += self.gaussian(closest_obstacle_dist, 0, 0.1)**3
+                    particle.w += gaussian(closest_obstacle_dist, 0, 0.1)**3
             if np.isnan(particle.w):
                 particle.w = 0
         self.normalize_particles()
@@ -333,10 +327,10 @@ class ParticleFilter(Node):
         if xy_theta is None:
             xy_theta = self.transform_helper.convert_pose_to_xy_and_theta(self.odom_pose)
         self.particle_cloud = []
-        # Creates uniform gaussian distribution around p    oint.
+        # Creates uniform gaussian distribution around point.
         # random.normal(mean, standard deviation, size)
         # std = determines the spread of the initial particle cloud
-        std = 0.9
+        std = 0.3
         x_list = np.random.normal(xy_theta[0], std, self.n_particles)
         y_list = np.random.normal(xy_theta[1], std, self.n_particles)
         theta_list = np.random.uniform(0,2*math.pi, self.n_particles) # TODO: might be sus, check with Loren
@@ -378,14 +372,6 @@ class ParticleFilter(Node):
         # self.scan_to_process is set to None in the run_loop 
         if self.scan_to_process is None:
             self.scan_to_process = msg
-
-    def gaussian(self, x, mu, sig):
-        """ Gaussian distribution function with y values between 0-1
-            Arguments:
-            sig: standard deviation
-            mu: mean
-        """
-        return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
 
 
 def main(args=None):
