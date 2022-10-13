@@ -36,6 +36,27 @@ def draw_random_sample(choices, probabilities, n):
         samples.append(deepcopy(choices[int(i)]))
     return samples
 
+def gaussian(x, mu, sig):
+    """ Gaussian distribution function with y values between 0-1
+        Arguments:
+        sig: standard deviation
+        mu: mean
+    """
+    return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
+
+def calculate_mean_angle(angle_list, weights):
+    """ Calculate the mean angle by converting the computing unit vectors 
+        from the list of angles and adding the vectors
+        Arguments:
+        angle_list: list of angles in radians
+    """
+    x = y = 0
+    for i in range(len(angle_list)):
+        x += math.cos(angle_list[i]) * weights[i]
+        y += math.sin(angle_list[i]) * weights[i]
+    avg_angle = math.atan2(y,x)
+    return avg_angle
+
 class TFHelper(object):
     """ TFHelper Provides functionality to convert poses between various
         forms, compare angles in a suitable way, and publish needed
