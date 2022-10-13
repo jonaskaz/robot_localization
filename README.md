@@ -31,7 +31,7 @@ moved.
 
 The transformation matrix for a general pose is:
 
-![transformation matrix](img/transformation_matrix.svg)
+![transformation matrix](img/transformation_matrix.png)
 
 This transforms a unit vector along the x axis to the specified pose. This is
 especially useful because the same form can then represent a pose and also be
@@ -44,7 +44,7 @@ use the inverse of the original robot position because this effectively
 transforms a pose from the original robot position to the odometry origin, then
 from the odometry origin to the final robot position.
 
-![particle pose transformation](img/particle_pose_transformation.svg)
+![particle pose transformation](img/particle_pose_transformation.png)
 
 ### Update the weight of the particles based on laser scan
 To weight the particles, we went through each particle in the cloud and performed the following steps:
