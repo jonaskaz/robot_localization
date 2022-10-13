@@ -31,7 +31,7 @@ moved.
 
 The transformation matrix for a general pose is:
 
-![transformation matrix](https://latex.codecogs.com/svg.image?\begin{bmatrix}\cos{\theta}&space;&&space;\sin{\theta}&space;&&space;x&space;\\&space;-\sin{\theta}&space;&&space;\cos{\theta}&space;&&space;y&space;\\&space;0&space;&&space;0&space;&&space;1\end{bmatrix})
+![transformation matrix](img/transformation_matrix.svg)
 
 This transforms a unit vector along the x axis to the specified pose. This is
 especially useful because the same form can then represent a pose and also be
@@ -44,7 +44,7 @@ use the inverse of the original robot position because this effectively
 transforms a pose from the original robot position to the odometry origin, then
 from the odometry origin to the final robot position.
 
-![particle pose transformation](https://latex.codecogs.com/svg.image?T_{orig&space;\rightarrow&space;final}&space;=&space;T_{orig&space;\rightarrow&space;origin}&space;\cdot&space;T_{origin&space;\rightarrow&space;final}\\T_{orig&space;\rightarrow&space;final}&space;=&space;T_{origin&space;\rightarrow&space;orig}^{-1}&space;\cdot&space;T_{origin&space;\rightarrow&space;final})
+![particle pose transformation](img/particle_pose_transformation.svg)
 
 ### Update the weight of the particles based on laser scan
 To weight the particles, we went through each particle in the cloud and performed the following steps:
