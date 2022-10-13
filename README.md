@@ -1,5 +1,12 @@
 # Robot Localization
 
+## Introduction
+Localization is one of the core challenges to robotics. While many solutions
+rely on external sensors, such as GPS, these tend to be expensive and require
+manual setup in the environment the robot operates in. The localization
+algorithm we will be exploring in this project is a particle filter, a
+completely self-contained system using only a lidar sensor.
+
 ## Purpose
 The goal of our project was the explore robot localization by implementing the particle filter algorithm. This work helped us build more fluency with ROS and robotics debugging.
 
@@ -14,7 +21,30 @@ The main steps of our algorithm were:
 To intialize the particles, we drew points from a uniform gaussian distribution centered around the intial pose. With this method, we can adjust the standard deviation of the distribution in order to control the spread of the particles when initialized.
 
 ### Update particle position based on odometry
+Every time we got an odometry update, each particle's pose was updated to follow
+the same transformation the robot did. To do so, we started by representing each
+particle pose as a transformation of a unit vector at the origin of the world
+frame. Then, we computed the transformation matrix between the two robot poses
+in the odometry frames. This transformation matrix was then applied to the
+particle pose, effectively moving the particle pose by the same amount the robot
+moved.
 
+The transformation matrix for a general pose is:
+
+![transformation matrix](https://latex.codecogs.com/svg.image?\begin{bmatrix}\cos{\theta}&space;&&space;\sin{\theta}&space;&&space;x&space;\\&space;-\sin{\theta}&space;&&space;\cos{\theta}&space;&&space;y&space;\\&space;0&space;&&space;0&space;&&space;1\end{bmatrix})
+
+This transforms a unit vector along the x axis to the specified pose. This is
+especially useful because the same form can then represent a pose and also be
+used to represent the transformation between poses.
+
+To compute the transformation to apply, we start by representing the two robot
+poses (original and updated) in the transformation matrix format. We can then
+use the dot product of these two products to compute the transformation. We
+use the inverse of the original robot position because this effectively
+transforms a pose from the original robot position to the odometry origin, then
+from the odometry origin to the final robot position.
+
+![particle pose transformation](https://latex.codecogs.com/svg.image?T_{orig&space;\rightarrow&space;final}&space;=&space;T_{orig&space;\rightarrow&space;origin}&space;\cdot&space;T_{origin&space;\rightarrow&space;final}\\T_{orig&space;\rightarrow&space;final}&space;=&space;T_{origin&space;\rightarrow&space;orig}^{-1}&space;\cdot&space;T_{origin&space;\rightarrow&space;final})
 
 ### Update the weight of the particles based on laser scan
 To weight the particles, we went through each particle in the cloud and performed the following steps:
