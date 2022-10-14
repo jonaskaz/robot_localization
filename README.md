@@ -46,6 +46,11 @@ from the odometry origin to the final robot position.
 
 ![particle pose transformation](img/particle_pose_transformation.svg)
 
+The transformation matrices from the origin to the robot pose can be computed by
+using the robot pose in the odometry frame. Because we are transforming to the
+origin and then from the origin, the coordinate system origin we use does not
+matter, and the odometry frame is the most convienent here.
+
 ### Update the weight of the particles based on laser scan
 To weight the particles, we went through each particle in the cloud and performed the following steps:
 - Go through each laser scan point from the robot and for each scan point:
@@ -55,7 +60,7 @@ To weight the particles, we went through each particle in the cloud and performe
 With this setup, particles that have laser scans with very small closest obstacles will be weighted highly, wheras particles with laser scans that are far off from the map will have lower weights. We can adjust the standard deviation of our gaussian function in order to either increase or decrease the distance between lower and highly weighted particles
 
 ## Resample the particles
-To resample the particles, we simply draw a random sample from all the particles using the particle's weight to 
+To resample the particles, we simply draw a random sample from all the particles using the particle's weight as a bias. This makes the algorithm choose the heavily weighted (ie more likely) particles more often, which causes the particles to converge. However, because the highly weighted particles can (and probably will) be sampled multiple times, we also add in noise, which is sampled from a normal distribution. This noise ensures that the new particles have a bit of diversity, which keeps the particle filter from converging in the wrong spot too quickly.
 
 How did you solve the problem? (Note: this doesn’t have to be super-detailed, you should try to explain what you did at a high-level so that others in the class could reasonably understand what you did).
 
