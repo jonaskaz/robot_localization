@@ -126,7 +126,10 @@ class ParticleFilter(Node):
         # we are using a thread to work around single threaded execution bottleneck
         thread = Thread(target=self.loop_wrapper)
         thread.start()
-        self.transform_update_timer = self.create_timer(0.05, self.pub_latest_transform)
+
+        # we are using a thread to work around single threaded execution bottleneck
+        thread_2 = Thread(target=self.pub_wrapper)
+        thread_2.start()
 
         # Publish particle weights for visualizing
         self.particle_weight_publisher = self.create_publisher(
@@ -157,6 +160,11 @@ class ParticleFilter(Node):
         while True:
             self.run_loop()
             time.sleep(0.1)
+    
+    def pub_wrapper(self):
+        while True:
+            self.pub_latest_transform()
+            time.sleep(0.05)
 
     def run_loop(self):
         """This is the main run_loop of our particle filter.  It checks to see if
