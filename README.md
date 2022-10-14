@@ -64,6 +64,16 @@ To resample the particles, we simply draw a random sample from all the particles
 
 How did you solve the problem? (Note: this doesn’t have to be super-detailed, you should try to explain what you did at a high-level so that others in the class could reasonably understand what you did).
 
+## Demo
+Below you can see our our particle algorithm localize the position of a neato robot in a small map. The particles are represented by small red arrows, the robot is represented by a large red arrow, and the laser scan is represented by red dots. We can see that as the robot drives around, particles begin to form a cohesive group, and the laser scan begins to align with map.  
+![small map robot localization](/img/robot_localization_gauntlet.gif)
+
+We used the same visualization approach to localize the robot in a larger map. However, for this map we increased our intial particle spread. This spread is shown in the image below.  
+<img src="img/init_particles.jpg" alt="initial particle spread" width="300"/>
+
+Below we can see our algorithm localizing the robot in a larger map.  
+![full map robot localization](/img/robot_localization_mac.gif)
+
 ## Design Decision
 Describe a design decision you had to make when working on your project and what you ultimately did (and why)? These design decisions could be particular choices for how you implemented some part of an algorithm or perhaps a decision regarding which of two external packages to use in your project.
 
