@@ -74,7 +74,7 @@ Below we can see our algorithm localizing the robot in a larger map.
 
 ## Design Decision
 
-To determine the robot's position from the particle cloud, we had the option of either taking the weighted mean pose of all the particles or the pose of the best (most heavily weightd) particle. After experimenting with both approaches, we decided to use the mean pose because it led to a smoother motion of the robot.
+To determine the robot's position from the particle cloud, we had the option of either taking the weighted mean pose of all the particles or the pose of the best (most heavily weighted) particle. After experimenting with both approaches, we decided to use the mean pose because it led to a smoother motion of the robot.
 
 Another decision decision we made was in the function to calculate the weight for each particle. After obtaining the distance from each of the 360 laser scans points to the closest obstacle, we had several options for weight calculation: 
 * Set a certain threshold (Ex: 0.05 meters) to consider a laser scan point "accurate", and weigh each particle based on how many scan points are accurate out of 360.
