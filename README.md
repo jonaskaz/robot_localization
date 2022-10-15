@@ -78,7 +78,7 @@ To determine the robot's position from the particle cloud, we had the option of 
 
 Another decision decision we made was in the function to calculate the weight for each particle. After obtaining the distance from each of the 360 laser scans points to the closest obstacle, we had several options for weight calculation: 
 * Set a certain threshold (Ex: 0.05 meters) to consider a laser scan point "accurate", and weigh each particle based on how many scan points are accurate out of 360.
-* Take the sum of the distances and obtain the inverse, such that if the summed distance to the closest obstacles is small, it is weighted more. 
+* Take the sum of the distances and obtain the inverse, such that if the summed distance to the closest obstacles is small, the particle is weighted more. 
 * Put each distance to the closest obstacle into a gaussian function centered at 0 with y values from 0-1 and multiply the outputs of the guassian function together.
 
 We decided to use the gaussian function method because it allowed us to weigh more accurate particle more dramatically and adjust the rate of convergence by modifying the standard deviation. 
