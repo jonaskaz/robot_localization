@@ -80,20 +80,24 @@ Another decision decision we made was in the function to calculate the weight fo
 * Set a certain threshold (Ex: 0.05 meters) to consider a laser scan point "accurate", and weigh each particle based on how many scan points are accurate out of 360.
 * Take the sum of the distances and obtain the inverse, such that if the summed distance to the closest obstacles is small, it is weighted more. 
 * Put each distance to the closest obstacle into a gaussian function centered at 0 with y values from 0-1 and multiply the outputs of the guassian function together.
+
 We decided to use the gaussian function method because it allowed us to weigh more accurate particle more dramatically and adjust the rate of convergence by modifying the standard deviation. 
 
 ## Challenges
-What if any challenges did you face along the way?
 
-Some challenges we faced for this project include accurately visualizing each step and understanding the mathematical aspects like transformations. We first tried to implement the entire particle filter without testing, but soon realized we needed to test each step. This required us to backtrack and downscale to 3 particles and make sure that the particles updated with the translation of the robot movement, adjusted weights, and resampled, all as expected. It was tricky figuring out how to best visualize the weights but we eventually went with a scatter plot with size of the plot points varying based on weight. Understanding the transforms used in the update particles with odometry section was also difficult. As a team, we walked through the math together on a whiteboard to wrap our heads around the different frames. 
+Some challenges we faced for this project include accurately visualizing each step and understanding the mathematical aspects like transformations. 
+
+We first tried to implement the entire particle filter without testing, but after failing to localize the robot, we realized we needed to test each step. This required us to backtrack and downscale to 3 particles and make sure that the particles updated with the robot movement, adjusted weights, and resampled all as expected. It was tricky figuring out how to best visualize the weights but we eventually went with a scatter plot with size of the plot points varying based on weight. 
+
+Understanding the transforms used in the update particles with odometry section was also difficult. As a team, we walked through the math together on a whiteboard to wrap our heads around the different frames. 
 
 ## Future Improvements
 
 If we had more time in this project, we would like to experiment with speeding up the particle filter by replacing a lot of the for loops with matrix multiplication. This will allow us to tackle bigger localizations challenges without the lag that we currently experience. 
 
 ## Reflection
-Did you learn any interesting lessons for future robotic programming projects? These could relate to working on robotics projects in teams, working on more open-ended (and longer term) problems, or any other relevant topic.
 
+From this project, one of our key takeaways is to test frequently and often. As a team, we ended up spending much more time than needed debugging because we didn't test each step properly in the beginning. 
 
 
 
