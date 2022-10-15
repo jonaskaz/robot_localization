@@ -62,8 +62,6 @@ With this setup, particles that have laser scans with very small closest obstacl
 ## Resample the particles
 To resample the particles, we simply draw a random sample from all the particles using the particle's weight as a bias. This makes the algorithm choose the heavily weighted (ie more likely) particles more often, which causes the particles to converge. However, because the highly weighted particles can (and probably will) be sampled multiple times, we also add in noise, which is sampled from a normal distribution. This noise ensures that the new particles have a bit of diversity, which keeps the particle filter from converging in the wrong spot too quickly.
 
-How did you solve the problem? (Note: this doesn’t have to be super-detailed, you should try to explain what you did at a high-level so that others in the class could reasonably understand what you did).
-
 ## Demo
 Below you can see our our particle algorithm localize the position of a neato robot in a small map. The particles are represented by small red arrows, the robot is represented by a large red arrow, and the laser scan is represented by red dots. We can see that as the robot drives around, particles begin to form a cohesive group, and the laser scan begins to align with map.  
 ![small map robot localization](/img/robot_localization_gauntlet.gif)
@@ -75,16 +73,27 @@ Below we can see our algorithm localizing the robot in a larger map.
 ![full map robot localization](/img/robot_localization_mac.gif)
 
 ## Design Decision
-Describe a design decision you had to make when working on your project and what you ultimately did (and why)? These design decisions could be particular choices for how you implemented some part of an algorithm or perhaps a decision regarding which of two external packages to use in your project.
+
+To determine the robot's position from the particle cloud, we had the option of either taking the weighted mean pose of all the particles or the pose of the best (most heavily weightd) particle. After experimenting with both approaches, we decided to use the mean pose because it led to a smoother motion of the robot.
+
+Another decision decision we made was in the function to calculate the weight for each particle. After obtaining the distance from each of the 360 laser scans points to the closest obstacle, we had several options for weight calculation: 
+* Set a certain threshold (Ex: 0.05 meters) to consider a laser scan point "accurate", and weigh each particle based on how many scan points are accurate out of 360.
+* Take the sum of the distances and obtain the inverse, such that if the summed distance to the closest obstacles is small, it is weighted more. 
+* Put each distance to the closest obstacle into a gaussian function centered at 0 with y values from 0-1 and multiply the outputs of the guassian function together.
+We decided to use the gaussian function method because it allowed us to weigh more accurate particle more dramatically and adjust the rate of convergence by modifying the standard deviation. 
 
 ## Challenges
 What if any challenges did you face along the way?
 
+Some challenges we faced for this project include accurately visualizing each step and understanding the mathematical aspects like transformations. We first tried to implement the entire particle filter without testing, but soon realized we needed to test each step. This required us to backtrack and downscale to 3 particles and make sure that the particles updated with the translation of the robot movement, adjusted weights, and resampled, all as expected. It was tricky figuring out how to best visualize the weights but we eventually went with a scatter plot with size of the plot points varying based on weight. Understanding the transforms used in the update particles with odometry section was also difficult. As a team, we walked through the math together on a whiteboard to wrap our heads around the different frames. 
+
 ## Future Improvements
-What would you do to improve your project if you had more time?
+
+If we had more time in this project, we would like to experiment with speeding up the particle filter by replacing a lot of the for loops with matrix multiplication. This will allow us to tackle bigger localizations challenges without the lag that we currently experience. 
 
 ## Reflection
 Did you learn any interesting lessons for future robotic programming projects? These could relate to working on robotics projects in teams, working on more open-ended (and longer term) problems, or any other relevant topic.
+
 
 
 
